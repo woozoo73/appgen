@@ -1,0 +1,144 @@
+package ${formController.getFullPackageName()};
+
+#foreach ($declaration in $formController.getImportDeclarations())
+${declaration}
+#end
+
+public class ${formController.getClassName()} extends SimpleFormController {
+
+	private ${service.getInterfaceName()} ${service.getInstanceName()};
+
+	public void set${service.getInterfaceName()}(${service.getInterfaceName()} ${service.getInstanceName()}) {
+		this.${service.getInstanceName()} = ${service.getInstanceName()};
+	}
+
+	@Override
+	@SuppressWarnings("unchecked")
+	protected Map referenceData(HttpServletRequest request) throws Exception {
+		String mode = ServletRequestUtils.getRequiredStringParameter(request, "mode");
+		
+		${entity.getClassName()}Criteria ${criteria.getInstanceName()} = new ${entity.getClassName()}Criteria();
+		ServletRequestDataBinder binder = createBinder(request, ${criteria.getInstanceName()});
+		binder.bind(request);
+		
+		Map map = new LinkedHashMap();
+		map.put("mode",  mode);
+		map.put("${criteria.getInstanceName()}", ${criteria.getInstanceName()});
+
+		return map;
+	}
+
+	@Override
+	protected void initBinder(HttpServletRequest request, ServletRequestDataBinder binder) throws Exception {
+#if ($formController.isCustomDateEditorRequired())
+${formController.getInitBinderCustomDateEditor()}
+#end
+#if ($formController.isAttachFilePropertyEditorRequired())
+${formController.getInitBinderAttachFilePropertyEditor()}
+#end
+	}
+
+	@Override
+	protected void onBind(HttpServletRequest request, Object command, BindException errors) throws Exception {
+#if ($formController.isOnBindRequired())
+		${entity.getClassName()} ${entity.getInstanceName()} = (${entity.getClassName()}) command;
+#if ($entity.hasAttachFileField())
+
+#foreach ($field in $entity.getAttachFileFieldList())
+		boolean _checkDelete${field.getFirstCapFieldName()} = ServletRequestUtils.getBooleanParameter(request, "${field.getFieldName()}.checkDelete", false);
+#end
+
+#foreach ($field in $entity.getAttachFileFieldList())
+		if (${entity.getInstanceName()}.${field.getGetterMethodName()}() != null) {
+			${entity.getInstanceName()}.${field.getGetterMethodName()}().setCheckDelete(_checkDelete${field.getFirstCapFieldName()});
+		}
+#end
+#end
+#end
+	}
+
+	@Override
+	protected void onBindAndValidate(HttpServletRequest request, Object command, BindException errors) throws Exception {
+#if ($entity.hasAttachFileField())
+		${entity.getClassName()} ${entity.getInstanceName()} = (${entity.getClassName()}) command;
+		
+#foreach ($field in $entity.getAttachFileFieldList())
+		AttachFile ${field.getFieldName()} = ${entity.getInstanceName()}.${field.getGetterMethodName()}();
+#end
+		
+#foreach ($field in $entity.getAttachFileFieldList())
+		if (${field.getFieldName()}.getSize() > 1L * 1024 * 1024) {
+			errors.rejectValue("${field.getFieldName()}", "exceed", new String[] { "1M" }, null);
+		}
+#end
+		
+		String mode = ServletRequestUtils.getRequiredStringParameter(request, "mode");
+		
+		if (mode.equals("write")) {
+#foreach ($field in $entity.getAttachFileFieldList())
+#if (${field.isNullable()})
+#else
+			if (!${field.getFieldName()}.isCheckSave()) {
+				errors.rejectValue("${field.getFieldName()}", "required");
+			}
+#end
+#end
+		}
+		
+		if (mode.equals("edit")) {
+#foreach ($field in $entity.getAttachFileFieldList())
+#if (${field.isNullable()})
+#else
+			if (${field.getFieldName()}.isCheckDelete() && !${field.getFieldName()}.isCheckSave()) {
+				errors.rejectValue("${field.getFieldName()}", "required");
+			}
+#end
+#end
+		}
+		
+		if (errors.hasErrors()) {
+			${entity.getClassName()} _old${entity.getClassName()} = (${entity.getClassName()}) formBackingObject(request);
+			
+#foreach ($field in $entity.getAttachFileFieldList())
+			${entity.getInstanceName()}.${field.getSetterMethodName()}(_old${entity.getClassName()}.${field.getGetterMethodName()}());
+#end
+			
+			onBind(request, ${entity.getInstanceName()}, errors);
+		}
+#end
+	}
+
+	@Override
+	protected Object formBackingObject(HttpServletRequest request) throws Exception {
+		${entity.getClassName()} ${entity.getInstanceName()} = null;
+		
+		String mode = ServletRequestUtils.getRequiredStringParameter(request, "mode");
+
+		if (mode.equals("write")) {
+			${entity.getInstanceName()} = new ${entity.getClassName()}();
+		}
+		
+		if (mode.equals("edit")) {
+${formController.getParseRequestParameterSnippet()}
+			${entity.getInstanceName()} = ${service.getInstanceName()}.select(${dao.getPrimaryKeyParameters(false)});
+		}
+
+		return ${entity.getInstanceName()};
+	}
+
+	@Override
+	protected ModelAndView onSubmit(HttpServletRequest request, HttpServletResponse response, Object command, BindException errors) throws Exception {
+		String mode = ServletRequestUtils.getRequiredStringParameter(request, "mode");
+		
+		${entity.getClassName()} ${entity.getInstanceName()} = (${entity.getClassName()}) command;
+		
+		if (mode.equals("write")) {
+			${entity.getInstanceName()}Service.insert(${entity.getInstanceName()});
+		} else if (mode.equals("edit")) {
+			${entity.getInstanceName()}Service.update(${entity.getInstanceName()});
+		}
+
+		return new ModelAndView(getSuccessView());
+	}
+
+}
